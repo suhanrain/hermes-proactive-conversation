@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local secrets and runtime artifacts — never commit these.
+.env
+.env.*
+!.env.example
+*.bak
+*.log
+.skill-config/
+config.json
+.skill-state*
+*.db

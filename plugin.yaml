@@ -1,0 +1,49 @@
+name: proactive-conversation
+version: "1.0.0"
+manifest_version: 2
+description: "Hi~ I'd like to say… — a proactive-conversation plugin for Hermes Agent"
+author: "suhanrain"
+provides_hooks:
+  - pre_gateway_dispatch
+  - transform_llm_output
+  - pre_tool_call
+  - pre_llm_call
+config_schema:
+  trigger_mode:
+    type: string
+    default: "off"
+    enum: ["on", "off"]
+    description: "Which proactive trigger runs: 'on' (the plugin drives a proactive turn via gateway injection; needs allow_gateway_injection: true) or 'off' (default, no proactive turn). Invalid falls back to 'off'. Write it quoted (trigger_mode: \"on\"): a bare on/off parses as a YAML boolean, which the plugin also accepts."
+  proactive_tools_enabled:
+    type: boolean
+    default: false
+    description: "Tool switch for the plugin's own proactive round only (ordinary turns are unaffected). Default false = no tool callable (denied:proactive-tool); only explicit true opens all tools. Absent/null/non-boolean = disabled (non-boolean also warns)."
+  proactive_prompt_soft:
+    type: string
+    default: null
+    description: "Template for a round that may stay silent. Optional placeholders {visible_since_user}, {minimum_visible_replies}. Absent/invalid = built-in default (never an empty or broken prompt). Quote the value if it contains ':'."
+  proactive_prompt_forced:
+    type: string
+    default: null
+    description: "Template for a round that must produce a visible reply (the default carries anti-repetition guidance). Same placeholders and fallback rules as proactive_prompt_soft."
+  proactive_locale:
+    type: string
+    default: null
+    enum: [null, "zh-Hans", "en", "auto"]
+    description: "i18n switch for the language-dependent rules: 'zh-Hans' / 'en' / 'auto' (read host locale, fallback en). Unset = neutral (no language regex/ack table/length floor; machine markers still apply). Invalid = neutral + warning."
+  pending_release_ttl_seconds:
+    type: number
+    default: 600
+    description: "Max seconds an in-flight release ticket may still be re-checked. Default 600; must be >0 and <=86400. Invalid falls back to 600 (with a logged reason)."
+  event_timestamp_sanity_seconds:
+    type: number
+    default: 604800
+    description: "Plausibility band (seconds) for an inbound message's own timestamp. Default 604800 (7d); must be >0 and <=2592000 (30d). Invalid falls back to the default."
+  composition:
+    type: dict
+    default: null
+    description: "Read-only material block the released round is assembled from. No default: recent_record_seconds, transcript_max_messages, transcript_window_seconds, memory_window_seconds must all be positive, finite numbers. Optional transcript_topic_rules / memory_topic_rules. Absent/invalid = fail-closed (no assembly, no round). Read once per inbound round (hot)."
+  session_declarations:
+    type: list
+    default: []
+    description: "Sessions allowed to receive proactive messages. Each entry: required session_key; optional session_id (omit = channel-level, self-heals on /reset; set = exact instance). Per-session keys: enabled, timezone, dnd_start, dnd_end, min_idle_seconds, max_idle_seconds, and the two-layer counters window_max_attempts/window_min_visible/day_max_silent (required) plus optional day_max_attempts (0 = no limit; all-zero rejected). A bad entry only turns that channel OFF. Read every hook (hot)."
