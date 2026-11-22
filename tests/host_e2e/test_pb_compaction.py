@@ -205,7 +205,7 @@ def test_the_context_sql_carries_the_compaction_predicate_and_active_and_trim():
     states the invariant directly so the *mechanism* of the boundary is locked, not just its effect.
     """
     sql = host_adapter._CONTEXT_SQL
-    assert "compacted = 0" in sql, "the seam must exclude compacted rows (Q-013 ruling (a))"
+    assert "compacted = 0" in sql, "the seam must exclude compacted rows"
     assert "active = 1" in sql
     assert "TRIM(content) <> ''" in sql
     assert "role IN ('user', 'assistant')" in sql
