@@ -12,7 +12,7 @@ A proactive-conversation plugin for Hermes · lets your AI reach out at the righ
 <img alt="host" src="https://img.shields.io/badge/Hermes-0.23.0-4b6fff?style=flat-square">
 <img alt="python" src="https://img.shields.io/badge/python-3.12%2B-3776ab?style=flat-square">
 <img alt="dependencies" src="https://img.shields.io/badge/dependencies-zero-7da1de?style=flat-square">
-<img alt="version" src="https://img.shields.io/badge/version-1.0.0-263146?style=flat-square">
+<img alt="version" src="https://img.shields.io/badge/version-1.0.1-263146?style=flat-square">
 
 </div>
 

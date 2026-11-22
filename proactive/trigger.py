@@ -677,7 +677,7 @@ async def _tick_loop(
             global _last_tick_ts
             _last_tick_ts = time.monotonic()  # heartbeat: this loop is alive this iteration
             store_handle, sessions = store_provider()
-            tick(store_handle, sessions, _now())
+            tick(store_handle, sessions, _now(), rng=_default_rng())
         except asyncio.CancelledError:  # unload / force reload: not an error
             # A stale replacement can be installed before the loop observes cancellation. Only
             # the current owner may clear the global arm; an obsolete loop must not retire its

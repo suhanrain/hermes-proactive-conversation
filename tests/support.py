@@ -7,6 +7,7 @@ discovery in this suite resolves under a throwaway directory.
 
 from __future__ import annotations
 
+import atexit
 import os
 import random
 import shutil
@@ -32,11 +33,82 @@ PLUGIN_DIR_NAME = "proactive-conversation"
 #: Throwaway hermes home for the whole test session (never the live profile).
 #: ``PCHAT_ISO_HOME`` lets a *child process* spawned by a test join the same throwaway home instead
 #: of making its own — a test that needs a genuinely restarted process reading the same durable
-#: store can join it. It is unset in every ordinary run, so the
-#: home is still created fresh per session; the value is only ever a throwaway temp dir.
-ISO_HOME = Path(os.environ.get("PCHAT_ISO_HOME") or tempfile.mkdtemp(prefix="pchat-home-"))
-os.environ["HERMES_HOME"] = str(ISO_HOME)
-os.environ["HERMES_BUNDLED_PLUGINS"] = str(ISO_HOME / "no-bundled-plugins")
+#: store can join it. It is unset in every ordinary run, so the home is still created fresh per
+#: session; the value is only ever a throwaway temp dir.
+#:
+#: Creation is lazy: collecting tests or running a unit-only selection does not need a home, so it
+#: must not create one. The parent root is fixed (``PCHAT_ISO_ROOT``, default
+#: ``<tempdir>/pchat-iso``) and each process gets a unique child; children inherit the exact
+#: ``PCHAT_ISO_HOME``. The owner process removes its child at exit unless
+#: ``PCHAT_KEEP_ISO_HOME=1``.
+_ISO_HOME: Path | None = None
+
+
+def _cleanup_home(home: Path) -> None:
+    """Best-effort removal of a throwaway home, including late-released SQLite handles.
+
+    On Windows a ``state.db`` opened during the session can still be held when ``atexit`` runs;
+    ``shutil.rmtree(ignore_errors=True)`` then leaves the directory behind. Retry after a GC, and
+    as a last resort let a detached interpreter remove it after this process has exited.
+    """
+    import gc
+    import subprocess
+    import time
+
+    for _ in range(10):
+        gc.collect()
+        shutil.rmtree(home, ignore_errors=True)
+        if not home.exists():
+            return
+        time.sleep(0.2)
+    code = ("import time, shutil; time.sleep(1); "
+            f"shutil.rmtree({str(home)!r}, ignore_errors=True)")
+    kwargs = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | NEW_PROCESS_GROUP
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        subprocess.Popen([sys.executable, "-c", code], **kwargs)
+    except Exception:
+        pass
+
+
+def iso_home() -> Path:
+    """Create (once per process) and return the isolated HERMES_HOME."""
+    global _ISO_HOME
+    if _ISO_HOME is not None:
+        return _ISO_HOME
+    given = os.environ.get("PCHAT_ISO_HOME")
+    if given:
+        home = Path(given)
+        home.mkdir(parents=True, exist_ok=True)
+    else:
+        root = Path(os.environ.get("PCHAT_ISO_ROOT")
+                    or (Path(tempfile.gettempdir()) / "pchat-iso"))
+        root.mkdir(parents=True, exist_ok=True)
+        home = Path(tempfile.mkdtemp(prefix="pchat-home-", dir=root))
+        os.environ["PCHAT_ISO_HOME"] = str(home)
+        if os.environ.get("PCHAT_KEEP_ISO_HOME") != "1":
+            atexit.register(_cleanup_home, home)
+    _ISO_HOME = home
+    os.environ["HERMES_HOME"] = str(home)
+    os.environ["HERMES_BUNDLED_PLUGINS"] = str(home / "no-bundled-plugins")
+    return home
+
+
+def _config_path() -> Path:
+    return iso_home() / "config.yaml"
+
+
+def __getattr__(name: str):
+    # Keep the historical attribute API (tests use ``support.ISO_HOME`` / ``support.CONFIG_PATH``)
+    # without creating the home at import time.
+    if name == "ISO_HOME":
+        return iso_home()
+    if name == "CONFIG_PATH":
+        return _config_path()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 if str(PKG_ROOT) not in sys.path:
     sys.path.insert(0, str(PKG_ROOT))
@@ -193,14 +265,21 @@ def dims_for(store, entry, source) -> Dict[str, Any]:
 
 
 def install_plugin() -> Path:
-    """Copy this package into ``<ISO_HOME>/plugins/proactive-conversation`` exactly once per session."""
-    target = ISO_HOME / "plugins" / PLUGIN_DIR_NAME
+    """Copy the plugin's runtime files into ``<ISO_HOME>/plugins/...`` once per session.
+
+    Only what the loader imports is copied. The repository also holds design notes, internal
+    reports, tests and release tooling; copying the whole root into every throwaway home made each
+    test run large and scattered internal material into temp directories.
+    """
+    target = iso_home() / "plugins" / PLUGIN_DIR_NAME
     if target.exists():
         return target
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(PKG_ROOT, target,
-                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".git", ".pytest_cache"))
-    CONFIG_PATH.write_text(DEFAULT_CONFIG_TEXT, encoding="utf-8")
+    target.mkdir(parents=True, exist_ok=True)
+    for name in ("__init__.py", "plugin.yaml"):
+        shutil.copy2(PKG_ROOT / name, target / name)
+    shutil.copytree(PKG_ROOT / "proactive", target / "proactive",
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    _config_path().write_text(DEFAULT_CONFIG_TEXT, encoding="utf-8")
     return target
 
 
@@ -208,7 +287,6 @@ def install_plugin() -> Path:
 
 #: The isolated profile's config file. Plugin-level settings live here
 #: (``plugins.entries.proactive-conversation.settings.*``), which is exactly what ``ctx.get_config`` reads.
-CONFIG_PATH = ISO_HOME / "config.yaml"
 DEFAULT_CONFIG_TEXT = "plugins:\n  enabled: [proactive-conversation]\n"
 
 
@@ -255,13 +333,14 @@ def write_plugin_settings(values: Optional[Dict[str, Any]] = None) -> Path:
         lines += ["  entries:", f"    {PLUGIN_DIR_NAME}:", "      settings:"]
         for key, value in values.items():
             lines += _yaml_field(key, value, indent=8)
-    CONFIG_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return CONFIG_PATH
+    path = _config_path()
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def config_text() -> str:
     """The isolated config.yaml as text (so a test can restore it verbatim)."""
-    return CONFIG_PATH.read_text(encoding="utf-8")
+    return _config_path().read_text(encoding="utf-8")
 
 
 def load_plugin():

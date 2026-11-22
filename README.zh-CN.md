@@ -12,7 +12,7 @@ Hermes 主动会话插件 · 让你的 AI 在对的时候，主动来找你
 <img alt="宿主" src="https://img.shields.io/badge/Hermes-0.23.0-4b6fff?style=flat-square">
 <img alt="python" src="https://img.shields.io/badge/python-3.12%2B-3776ab?style=flat-square">
 <img alt="依赖" src="https://img.shields.io/badge/dependencies-zero-7da1de?style=flat-square">
-<img alt="版本" src="https://img.shields.io/badge/version-1.0.0-263146?style=flat-square">
+<img alt="版本" src="https://img.shields.io/badge/version-1.0.1-263146?style=flat-square">
 
 </div>
 

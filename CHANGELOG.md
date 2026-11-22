@@ -2,6 +2,20 @@
 
 All notable changes to `proactive-conversation` are documented here. **v1.0.0 is the first public release.**
 
+## v1.0.1 — 2026-11-23
+
+### Fixed
+
+- **DND exit crash in the production tick loop.** The loop called `tick()` without an RNG;
+  a session leaving DND with `dnd_hold` set reached `sample_deadline(..., None)` and raised
+  `AttributeError`. The loop now injects `_default_rng()`, and `sample_deadline` falls back
+  to the standard `random` module when `rng` is `None`. Added a regression test that calls
+  `trigger.tick()` exactly like the loop does.
+
+### Verification
+
+- `pytest -q --ignore=tests/host_e2e`: **651 passed, 9 skipped**.
+
 ## v1.0.0 — 2026-11-21
 
 ### Added

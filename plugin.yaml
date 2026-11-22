@@ -1,5 +1,5 @@
 name: proactive-conversation
-version: "1.0.0"
+version: "1.0.1"
 manifest_version: 2
 description: "Hi~ I'd like to say… — a proactive-conversation plugin for Hermes Agent"
 author: "suhanrain"

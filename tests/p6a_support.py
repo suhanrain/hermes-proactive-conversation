@@ -20,7 +20,7 @@ PLUGIN_PACKAGE = "proactive-conversation"
 
 def iso_home() -> Path:
     """The throwaway hermes home this test session resolves against."""
-    return Path(os.environ["HERMES_HOME"])
+    return support.iso_home()
 
 
 def db_path() -> Path:

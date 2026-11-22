@@ -38,6 +38,9 @@ from .state import SessionState
 
 def sample_deadline(anchor_at: float, cfg: _config.SessionConfig, rng: Any) -> float:
     """``anchor + U[min_idle, max_idle]`` — one random pick inside the configured window."""
+    if rng is None:
+        import random as _random
+        rng = _random
     return float(anchor_at) + float(rng.uniform(cfg.min_idle_seconds, cfg.max_idle_seconds))
 
 
